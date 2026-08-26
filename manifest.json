@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Work Log Submitter",
+  "version": "1.0",
+  "description": "บันทึกการปฏิบัติงานลงฟอร์มองค์กรและสำรองลง Sheet ส่วนตัว",
+  
+  "permissions": [
+    "identity"
+  ],
+  
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ]
+  },
+  
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
