@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dashboard - Work Log Manager V3.8.7</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="full-page">
+  <main class="page-shell dashboard-v38">
+    <header class="page-header dashboard-header">
+      <div>
+        <div class="eyebrow">WORK LOG MANAGER V3.8.7</div>
+        <h1>📊 Work Log Dashboard</h1>
+        <p id="periodLabel">กำลังโหลดข้อมูล...</p>
+      </div>
+      <div class="header-actions">
+        <button id="excelBtn" class="btn excel">📗 เปิด Google Sheet</button>
+        <button id="refreshBtn" class="btn secondary">↻ รีเฟรช</button>
+        <button id="settingsBtn" class="btn secondary">⚙️ ตั้งค่า</button>
+      </div>
+    </header>
+
+    <section class="period-picker">
+      <div class="period-group-label">ช่วงเวลารายงาน</div>
+      <div class="period-tabs period-tabs-main">
+        <button data-period="month" class="period-card active"><strong>1</strong><span>เดือน</span><small>เดือนล่าสุด</small></button>
+        <button data-period="3months" class="period-card"><strong>3</strong><span>เดือน</span><small>3 เดือนล่าสุด</small></button>
+        <button data-period="6months" class="period-card"><strong>6</strong><span>เดือน</span><small>6 เดือนล่าสุด</small></button>
+        <button data-period="9months" class="period-card"><strong>9</strong><span>เดือน</span><small>9 เดือนล่าสุด</small></button>
+      </div>
+      <div class="period-tabs period-tabs-secondary">
+        <button data-period="day" class="period-card">📅 วันนี้</button>
+        <button data-period="year" class="period-card">📈 1 ปี</button>
+        <button data-period="custom" class="period-card">🗓️ กำหนดเอง</button>
+      </div>
+    </section>
+
+    <section id="customPeriodBox" class="dashboard-toolbar card custom-period-panel hidden">
+      <div class="custom-period-title">🗓️ เลือกช่วงวันที่แบบกำหนดเอง</div>
+      <div class="custom-period-fields">
+        <label>วันที่เริ่ม
+          <div class="thai-date-field" data-thai-date="customStart">
+            <input type="text" id="customStartDisplay" autocomplete="off" placeholder="วัน เดือน พ.ศ.">
+            <input type="hidden" id="customStart">
+            <button type="button" class="thai-calendar-btn" aria-label="เปิดปฏิทิน">📅</button>
+            <div class="thai-calendar-popup hidden"></div>
+          </div>
+        </label>
+        <span class="custom-period-arrow">ถึง</span>
+        <label>วันที่สิ้นสุด
+          <div class="thai-date-field" data-thai-date="customEnd">
+            <input type="text" id="customEndDisplay" autocomplete="off" placeholder="วัน เดือน พ.ศ.">
+            <input type="hidden" id="customEnd">
+            <button type="button" class="thai-calendar-btn" aria-label="เปิดปฏิทิน">📅</button>
+            <div class="thai-calendar-popup hidden"></div>
+          </div>
+        </label>
+        <button id="applyCustomPeriodBtn" type="button" class="btn primary">ใช้ช่วงวันที่</button>
+      </div>
+      <div id="customPeriodError" class="custom-period-error"></div>
+    </section>
+
+    <section class="dashboard-toolbar card">
+      <div class="toolbar-search">
+        <input id="search" class="search" placeholder="🔎 ค้นหาชื่องาน / รายละเอียด / ประเภท...">
+        <select id="statusFilter" class="status-filter"></select>
+      </div>
+      <div class="toolbar-actions">
+        <button id="deletedToggleBtn" class="btn secondary">🗄️ งานที่ลบ</button>
+        <!-- <button id="exportBtn" class="btn secondary">⬇️ Export Excel</button> -->
+      </div>
+    </section>
+
+    <section class="stats-grid stats-grid-5">
+      <div class="stat-card"><span>📋 งานทั้งหมด</span><strong id="totalJobs">0</strong></div>
+      <div class="stat-card stat-success"><span>🟢 เสร็จแล้ว</span><strong id="doneJobs">0</strong></div>
+      <div class="stat-card stat-info"><span>🔵 กำลังดำเนินการ</span><strong id="progressJobs">0</strong></div>
+      <div class="stat-card stat-warning"><span>🟠 รอดำเนินการ</span><strong id="pendingJobs">0</strong></div>
+      <div class="stat-card"><span>📎 ไฟล์หลักฐาน</span><strong id="totalFiles">0</strong></div>
+    </section>
+
+    <section class="chart-toggle card">
+      <button id="toggleChartsBtn" class="chart-toggle-btn" type="button" aria-expanded="false">📊 แสดงกราฟและสรุปเชิงภาพ</button>
+      <span class="muted">ซ่อนไว้เป็นค่าเริ่มต้น • กดเมื่อต้องการดูกราฟ</span>
+    </section>
+
+    <section id="chartsSection" class="charts-collapsible hidden">
+      <section class="chart-grid">
+      <div class="card chart-card">
+        <div class="section-head">
+          <div>
+            <h2>📊 จำนวนงาน</h2>
+            <span id="summaryLabel" class="muted"></span>
+          </div>
+        </div>
+        <div id="bars" class="bars"></div>
+      </div>
+
+      <div class="card chart-card">
+        <div class="section-head">
+          <div>
+            <h2>📈 แนวโน้ม</h2>
+            <span class="muted">จำนวนงานตามช่วงเวลา</span>
+          </div>
+        </div>
+        <div id="lineChart" class="line-chart"></div>
+      </div>
+    </section>
+
+    <section class="chart-grid lower">
+      <div class="card chart-card">
+        <div class="section-head">
+          <div>
+            <h2>🥧 สถานะงาน</h2>
+            <span id="statusSummary" class="muted"></span>
+          </div>
+        </div>
+        <div class="pie-wrap">
+          <div id="statusPie" class="status-pie"><span>0%</span></div>
+          <div id="statusLegend" class="status-legend"></div>
+        </div>
+      </div>
+
+      <div class="card chart-card fiscal-card">
+        <div class="section-head">
+          <div>
+            <h2>🗓️ ปีงบประมาณ</h2>
+            <span class="muted">ตุลาคม = Q1</span>
+          </div>
+        </div>
+        <div id="fiscalInfo" class="fiscal-info"></div>
+      </div>
+      </section>
+    </section>
+
+    <section class="maincard card">
+      <div class="section-head table-head">
+        <div>
+          <h2 id="tableTitle">📋 รายการงาน</h2>
+          <span id="tableHint" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>วันที่</th>
+              <th>ช่วงเวลา</th>
+              <th>ประเภท</th>
+              <th>งาน</th>
+              <th>สถานะ</th>
+              <th>ไฟล์</th>
+              <th>จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="workRows"></tbody>
+        </table>
+      </div>
+      <div id="pagination" class="pagination" aria-label="แบ่งหน้ารายการงาน"></div>
+    </section>
+
+    <div id="editModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+        <header class="modal-header">
+          <div>
+            <div class="eyebrow">WORK LOG</div>
+            <h2 id="editTitle">✏️ แก้ไขข้อมูลงาน</h2>
+          </div>
+          <button id="modalCloseBtn" class="icon-btn" aria-label="ปิด">✕</button>
+        </header>
+
+        <form id="editForm">
+          <input type="hidden" id="editRowNumber">
+
+          <div class="grid-2">
+            <label>
+              วันที่
+              <div class="thai-date-field" data-thai-date="editDate">
+                <input type="text" id="editDateDisplay" autocomplete="off" placeholder="วัน เดือน พ.ศ." required>
+                <input type="hidden" id="editDate" required>
+                <button type="button" class="thai-calendar-btn" aria-label="เปิดปฏิทิน">📅</button>
+                <div class="thai-calendar-popup hidden"></div>
+              </div>
+            </label>
+            <label>
+              ช่วงเวลา
+              <select id="editTimePeriod" required>
+                <option value="">เลือกช่วงเวลา</option>
+                <option value="08:00 - 12:00">🌅 08:00 - 12:00 (เช้า)</option>
+                <option value="13:00 - 17:00">🌤️ 13:00 - 17:00 (บ่าย)</option>
+                <option value="ล่วงเวลา (OT)">🌙 ล่วงเวลา (OT)</option>
+                <option value="กำหนดเอง">🕐 กำหนดเอง</option>
+              </select>
+              <div id="editCustomTimeBox" class="custom-time-box hidden">
+                <div>
+                  <span>เวลาเริ่ม</span>
+                  <input type="text" id="editCustomStartTime" inputmode="numeric" maxlength="5" placeholder="HH:mm" autocomplete="off">
+                </div>
+                <span class="time-separator">ถึง</span>
+                <div>
+                  <span>เวลาสิ้นสุด</span>
+                  <input type="text" id="editCustomEndTime" inputmode="numeric" maxlength="5" placeholder="HH:mm" autocomplete="off">
+                </div>
+                <small>🕐 รูปแบบ 24 ชั่วโมง: <b>HH:mm</b> เช่น 08:00, 13:00, 18:30</small>
+              </div>
+            </label>
+          </div>
+
+          <label>
+            ประเภทงาน
+            <input type="text" id="editCategory" placeholder="เช่น งานวิจัย, งานระบบ, ประชุม">
+          </label>
+
+          <label>
+            ชื่องาน / หัวข้อ
+            <input type="text" id="editTaskName" placeholder="เช่น จัดทำรายงานผลการวิจัย" required>
+          </label>
+
+          <label>
+            รายละเอียดการทำงาน
+            <textarea id="editDetails" rows="4" placeholder="ระบุรายละเอียดงานที่ทำสำเร็จ..." required></textarea>
+          </label>
+
+          <div class="section-title">
+            <span>📎 เอกสารหลักฐาน</span>
+            <small id="editFileCount">0 ไฟล์</small>
+          </div>
+          <div id="editFiles" class="edit-files"></div>
+
+          <label class="dropzone compact-dropzone" for="editEvidenceFiles">
+            <input type="file" id="editEvidenceFiles" multiple>
+            <strong>คลิกเพื่อเลือกไฟล์</strong>
+            <span>สามารถเลือกหลายไฟล์ใน 1 งาน • ไฟล์ใหม่จะอัปโหลดเข้าโฟลเดอร์เดิม</span>
+          </label>
+
+          <label>
+            Link งาน (ถ้ามี)
+            <input type="url" id="editWorkUrl" placeholder="https://...">
+          </label>
+
+          <label>
+            สถานะ
+            <select id="editStatus"></select>
+          </label>
+
+          <!-- <div class="modal-actions">
+            <button type="button" id="cancelEditBtn" class="btn secondary">ยกเลิก</button>
+            <button type="submit" id="saveEditBtn" class="btn primary">💾 บันทึกงาน</button>
+          </div> -->
+
+          <div class="actions">
+        <button type="button" id="cancelEditBtn" class="btn secondary">🧹 ยกเลิก</button>
+        <button type="submit" id="saveEditBtn" class="btn primary">
+          <span id="submitText">💾 บันทึกงาน</span>
+          <span id="spinner" class="spinner hidden"></span>
+        </button>
+      </div>
+
+        </form>
+      </section>
+    </div>
+
+    <div id="confirmModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <section class="modal-dialog confirm-dialog" role="dialog" aria-modal="true">
+        <div class="confirm-icon">⚠️</div>
+        <h2 id="confirmTitle">ยืนยันการลบงาน</h2>
+        <p id="confirmMessage"></p>
+        <div class="modal-actions">
+          <button id="confirmCancelBtn" class="btn secondary">ยกเลิก</button>
+          <button id="confirmOkBtn" class="btn danger">🗑️ ยืนยันลบ</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="dashboardStatus" class="toast hidden"></div>
+  </main>
+
+  <script src="utils.js"></script>
+  <script src="thai-date-picker.js"></script>
+  <script src="google-api.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

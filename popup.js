@@ -1,151 +1,324 @@
-// รอให้ DOM โหลดเสร็จก่อนจับ Event
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('workLogForm');
+let selectedFiles = [];
+let autoCloseTimer = null;
+let userActiveAfterSave = false;
 
-    form.addEventListener('submit', async function(event) {
-        event.preventDefault();
+document.addEventListener("DOMContentLoaded", async () => {
+  initThaiDatePickers();
+  initStatusOptions();
+  const today = new Date();
+  setThaiDateValue("workDate", today);
+  setDefaultTimePeriod();
+  setupCustomTime();
 
-        // 1. Sanitize ข้อมูล (ตัดช่องว่างหัวท้าย) ตามมาตรฐาน Strict File Handling
-        const taskName = document.getElementById("taskName").value.trim();
-        const timePeriod = document.getElementById("timePeriod").value.trim();
-        const details = document.getElementById("details").value.trim();
-        const timestamp = new Date().toLocaleString("th-TH");
+  document.getElementById("evidenceFiles").addEventListener("change", onFilesSelected);
+  document.getElementById("workLogForm").addEventListener("submit", submitWork);
+  document.getElementById("clearBtn").addEventListener("click", clearForm);
+  document.getElementById("closeBtn").addEventListener("click", closeWorkLogWindow);
 
-        // 2. ปรับ UI เป็นสถานะกำลังโหลด
-        showLoading(true);
+  // ถ้าผู้ใช้กลับมาใช้งานหลังบันทึกสำเร็จ ให้ยกเลิกการปิดอัตโนมัติ
+  ["pointerdown", "keydown", "input", "change"].forEach(type => {
+    document.addEventListener(type, () => {
+      if (autoCloseTimer) {
+        userActiveAfterSave = true;
+        clearTimeout(autoCloseTimer);
+        autoCloseTimer = null;
+      }
+    }, { passive: true });
+  });
 
-        try {
-            // 3. ขอ OAuth Token จาก Chrome
-            const token = await getOAuthToken();
-            
-            // 4. ส่ง Request พร้อมกัน 2 ปลายทาง (Dual-write)
-            const results = await Promise.allSettled([
-                submitToOfficialForm(taskName, timePeriod, details),
-                backupToPersonalSheet(token, timestamp, taskName, timePeriod, details)
-            ]);
+  document.getElementById("menuBtn").addEventListener("click", () => {
+    document.getElementById("quickMenu").classList.toggle("hidden");
+  });
 
-            // เช็คผลลัพธ์แยกกันเผื่อกรณีใดกรณีหนึ่งพัง จะได้ debug ได้ง่าย
-            const formResult = results[0];
-            const sheetResult = results[1];
-
-            if (formResult.status === 'rejected') {
-                console.error("ส่ง Form องค์กรล้มเหลว:", formResult.reason);
-                throw new Error("ส่งฟอร์มองค์กรไม่สำเร็จ");
-            }
-            if (sheetResult.status === 'rejected') {
-                console.warn("สำรองข้อมูลลง Sheet ล้มเหลว:", sheetResult.reason);
-                // อาจจะไม่โยน Error ถ้าอยากให้ Form หลักยังทำงานต่อได้
-            }
-
-            // แสดงผลว่าสำเร็จและล้างฟอร์ม
-            showToast("บันทึกข้อมูลและสำรองลง Sheet สำเร็จ!", "success");
-            form.reset();
-
-        } catch (error) {
-            console.error("เกิดข้อผิดพลาดหลัก:", error);
-            showToast("พบปัญหา: " + error.message, "error");
-        } finally {
-            // 5. คืนสภาพปุ่มกลับมาเหมือนเดิมเสมอ
-            showLoading(false);
-        }
+  document.getElementById("timePeriod").addEventListener("change", updateCustomTimeVisibility);
+  ["customStartTime", "customEndTime"].forEach(id => {
+    document.getElementById(id).addEventListener("input", e => {
+      e.target.value = normalizeTimeInput(e.target.value);
     });
+  });
+
+  document.getElementById("dashboardBtn").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD" });
+  });
+
+  document.getElementById("settingsBtn").addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  const settings = await getSettings();
+  if (!settings.spreadsheetId || !settings.driveFolderId) {
+    showConfigWarning();
+  }
 });
 
-// ==========================================
-// ส่วนฟังก์ชัน API และ Authentication
-// ==========================================
-
-// ฟังก์ชันขอ OAuth Token จาก Chrome Identity
-function getOAuthToken() {
-    return new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, function(token) {
-            if (chrome.runtime.lastError || !token) {
-                reject(new Error(chrome.runtime.lastError.message || "ไม่สามารถขอ Token ได้ (ตรวจสอบ Client ID และ Key)"));
-            } else {
-                resolve(token);
-            }
-        });
-    });
+function initStatusOptions() {
+  const select = document.getElementById("status");
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = STATUS_OPTIONS.map(value =>
+    `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`
+  ).join("");
+  if (STATUS_OPTIONS.includes(current)) select.value = current;
 }
 
-// ฟังก์ชันส่งไป Google Sheet ส่วนตัว (ผ่าน API อย่างเป็นทางการ)
-async function backupToPersonalSheet(token, timestamp, taskName, timePeriod, details) {
-    // 🔴 เปลี่ยน YOUR_PERSONAL_SHEET_ID เป็น ID ของ Sheet ส่วนตัวอาจารย์
-    const spreadsheetId = "YOUR_PERSONAL_SHEET_ID";
-    // 🔴 เปลี่ยน Sheet1 ถ้าแท็บของอาจารย์ชื่ออื่น (เช่น ข้อมูลการทำงาน!A:D)
-    const range = "Sheet1!A:D"; 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED`;
+function setDefaultTimePeriod() {
+  const select = document.getElementById("timePeriod");
+  const hour = new Date().getHours();
 
-    const requestBody = {
-        values: [
-            [timestamp, taskName, timePeriod, details]
-        ]
+  if (hour >= 8 && hour < 13) {
+    select.value = "08:00 - 12:00";
+  } else if (hour >= 13 && hour < 17) {
+    select.value = "13:00 - 17:00";
+  } else {
+    select.value = "ล่วงเวลา (OT)";
+  }
+}
+
+function setupCustomTime() {
+  const now = new Date();
+  const start = `${String(now.getHours()).padStart(2, "0")}:00`;
+  const endHour = Math.min(now.getHours() + 1, 23);
+  const end = `${String(endHour).padStart(2, "0")}:00`;
+
+  document.getElementById("customStartTime").value = start;
+  document.getElementById("customEndTime").value = end;
+  updateCustomTimeVisibility();
+}
+
+function updateCustomTimeVisibility() {
+  const isCustom = document.getElementById("timePeriod").value === "กำหนดเอง";
+  document.getElementById("customTimeBox").classList.toggle("hidden", !isCustom);
+}
+
+function normalizeTimeInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+function isValid24HourTime(value) {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(value || ""));
+}
+
+
+function getSelectedTimePeriod() {
+  const value = document.getElementById("timePeriod").value;
+  if (value !== "กำหนดเอง") return value;
+
+  const start = document.getElementById("customStartTime").value;
+  const end = document.getElementById("customEndTime").value;
+  if (!start || !end) throw new Error("กรุณาระบุเวลาเริ่มและเวลาสิ้นสุด");
+  if (!isValid24HourTime(start) || !isValid24HourTime(end)) throw new Error("กรุณาระบุเวลาในรูปแบบ 24 ชั่วโมง HH:mm เช่น 13:00");
+  if (start >= end) throw new Error("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่ม");
+  return `${start} - ${end}`;
+}
+
+function closeWorkLogWindow() {
+  chrome.runtime.sendMessage({ type: "CLOSE_WORK_LOG_WINDOW" });
+}
+
+function scheduleAutoClose() {
+  if (autoCloseTimer) clearTimeout(autoCloseTimer);
+  userActiveAfterSave = false;
+  autoCloseTimer = setTimeout(() => {
+    autoCloseTimer = null;
+    if (!userActiveAfterSave) closeWorkLogWindow();
+  }, 5000);
+}
+
+function showConfigWarning() {
+  const el = document.getElementById("configWarning");
+  el.innerHTML = `ยังไม่ได้ตั้งค่า Google Sheet / Drive <button id="goSettings">เปิด Settings</button>`;
+  el.classList.remove("hidden");
+  document.getElementById("goSettings").onclick = () => chrome.runtime.openOptionsPage();
+}
+
+async function onFilesSelected(event) {
+  const inputFiles = [...event.target.files];
+  const settings = await getSettings();
+  const max = Number(settings.maxFilesPerTask || 20);
+  const merged = [...selectedFiles, ...inputFiles];
+
+  const seen = new Set();
+  selectedFiles = merged.filter(file => {
+    const key = `${file.name}|${file.size}|${file.lastModified}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, max);
+
+  event.target.value = "";
+  renderFileList();
+}
+function renderFileList() {
+  const list = document.getElementById("fileList");
+  list.innerHTML = "";
+
+  selectedFiles.forEach((file, index) => {
+    const row = document.createElement("div");
+    row.className = "file-row";
+    row.innerHTML = `
+      <div class="file-icon">📄</div>
+      <div class="file-meta">
+        <strong>${escapeHtml(file.name)}</strong>
+        <small>${formatBytes(file.size)}</small>
+      </div>
+      <button type="button" class="remove-file" data-index="${index}">×</button>
+    `;
+    list.appendChild(row);
+  });
+
+  document.getElementById("fileCount").textContent = `${selectedFiles.length} ไฟล์`;
+
+  list.querySelectorAll(".remove-file").forEach(btn => {
+    btn.onclick = () => {
+      selectedFiles.splice(Number(btn.dataset.index), 1);
+      renderFileList();
     };
+  });
+}
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
-    });
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+}
 
-    if (!response.ok) {
-        throw new Error(`Google Sheets API Error: ${response.status}`);
+function setLoading(loading) {
+  document.getElementById("submitBtn").disabled = loading;
+  document.getElementById("clearBtn").disabled = loading;
+  document.getElementById("submitText").textContent = loading ? "กำลังบันทึก..." : "💾 บันทึกงาน";
+  document.getElementById("spinner").classList.toggle("hidden", !loading);
+}
+
+function toast(message, type = "success") {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.className = `toast ${type}`;
+  setTimeout(() => el.className = "toast hidden", 5000);
+}
+
+function clearForm() {
+  document.getElementById("workLogForm").reset();
+  selectedFiles = [];
+  renderFileList();
+  const today = new Date();
+  setThaiDateValue("workDate", today);
+}
+
+async function submitWork(event) {
+  event.preventDefault();
+  setLoading(true);
+
+  try {
+    const settings = await getSettings();
+    if (!settings.spreadsheetId) throw new Error("กรุณาตั้งค่า Google Spreadsheet ID ใน Settings");
+    if (!settings.driveFolderId) throw new Error("กรุณาตั้งค่า Google Drive Folder ID ใน Settings");
+
+    const workDateValue = document.getElementById("workDate").value;
+    if (!workDateValue) throw new Error("กรุณาระบุวันที่");
+
+    const date = new Date(`${workDateValue}T12:00:00`);
+    const workId = makeWorkId(date);
+    const { month, year } = getThaiMonthYear(date);
+    const timestamp = new Date().toLocaleString("th-TH");
+    const category = document.getElementById("category").value.trim();
+    const taskName = document.getElementById("taskName").value.trim();
+    const details = document.getElementById("details").value.trim();
+    const timePeriod = getSelectedTimePeriod();
+    const status = document.getElementById("status").value;
+    const workUrl = document.getElementById("workUrl").value.trim();
+
+    // Prepare Sheet first. This creates the tab/header automatically if needed.
+    const sheetSetup = await ensureWorkLogSheet(
+      settings.spreadsheetId,
+      settings.sheetName
+    );
+    const actualSheetName = sheetSetup.actualSheetName || settings.sheetName;
+
+    // Create Drive folder hierarchy.
+    let parentForTask = settings.driveFolderId;
+
+    if (settings.folderStructure === "year-month-task" ||
+        settings.folderStructure === "year-task") {
+      const yearFolder = await getOrCreateDriveFolder(
+        String(date.getFullYear()),
+        settings.driveFolderId
+      );
+      parentForTask = yearFolder.id;
+
+      if (settings.folderStructure === "year-month-task") {
+        const monthFolder = await getOrCreateDriveFolder(
+          `${String(date.getMonth()+1).padStart(2,"0")}-${date.toLocaleString("th-TH",{month:"long"})}`,
+          yearFolder.id
+        );
+        parentForTask = monthFolder.id;
+      }
     }
-    return await response.json();
-}
 
-// ฟังก์ชันส่งไป Google Form ของหน่วยงาน (No-CORS)
-async function submitToOfficialForm(taskName, timePeriod, details) {
-    // 🔴 เปลี่ยน YOUR_OFFICIAL_FORM_ID เป็น ID ของ Form องค์กร
-    const formUrl = "https://docs.google.com/forms/d/e/YOUR_OFFICIAL_FORM_ID/formResponse";
-    const formData = new FormData();
-    
-    // 🔴 เปลี่ยน entry.xxxxxx ให้ตรงกับฟิลด์ใน Google Form
-    formData.append("entry.11111111", taskName);
-    formData.append("entry.22222222", timePeriod);
-    formData.append("entry.33333333", details);
+    const taskFolder = await createDriveFolder(
+      `${workDateValue}_${sanitizeFileName(taskName).slice(0, 100)}_${workId}`,
+      parentForTask
+    );
 
-    return fetch(formUrl, {
-        method: "POST",
-        mode: "no-cors", // จำเป็นต้องใช้เพื่อเลี่ยง CORS ของ Form
-        body: formData
-    });
-}
+    // Upload evidence files sequentially so the user can trust the progress.
+    const uploaded = [];
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      document.getElementById("submitText").textContent =
+        `กำลังอัปโหลด ${i + 1}/${selectedFiles.length}...`;
 
-// ==========================================
-// ส่วนฟังก์ชันจัดการ UI (Modern Clean)
-// ==========================================
-
-function showLoading(isLoading) {
-    const btnText = document.getElementById("btnText");
-    const spinner = document.getElementById("loadingSpinner");
-    const btn = document.getElementById("submitBtn");
-    
-    if (isLoading) {
-        btnText.textContent = "กำลังบันทึก...";
-        spinner.style.display = "inline-block"; // เปลี่ยนจาก block เป็น inline-block ให้อยู่ระนาบเดียวกับข้อความ
-        btn.disabled = true;
-    } else {
-        btnText.textContent = "บันทึกข้อมูล";
-        spinner.style.display = "none";
-        btn.disabled = false;
+      const result = await uploadFileToDrive(file, taskFolder.id);
+      uploaded.push(result);
     }
-}
 
-function showToast(message, type = "success") {
-    const toast = document.getElementById("toast");
-    toast.textContent = message;
-    
-    // รีเซ็ตคลาสเก่าก่อน
-    toast.className = `toast ${type}`;
-    toast.style.display = "block";
-    
-    // ให้ข้อความหายไปเองใน 4 วินาที
-    setTimeout(() => {
-        toast.style.display = "none";
-        toast.className = "toast";
-    }, 4000);
+    const driveUrl =
+      taskFolder.webViewLink ||
+      `https://drive.google.com/drive/folders/${taskFolder.id}`;
+
+    const row = [
+      workId,
+      formatThaiDate(date),
+      timePeriod,
+      category,
+      taskName,
+      details,
+      status,
+      uploaded.length,
+      taskFolder.id,
+      driveUrl,
+      "Google Account",
+      timestamp,
+      month,
+      year,
+      getQuarter(date),
+      getFiscalYear(date),
+      "ACTIVE",
+      "",
+      parentForTask,
+      workUrl
+    ];
+
+    await appendSheetValues(
+      settings.spreadsheetId,
+      `${actualSheetName}!A:T`,
+      [row]
+    );
+
+    toast(
+      sheetSetup.warning
+        ? `บันทึกข้อมูลงานเรียบร้อยแล้ว แต่ ${sheetSetup.warning}`
+        : `บันทึกข้อมูลงานเรียบร้อยแล้ว • ${uploaded.length} ไฟล์`,
+      "success"
+    );
+
+    clearForm();
+    scheduleAutoClose();
+  } catch (error) {
+    console.error(error);
+    toast(error.message || "เกิดข้อผิดพลาด", "error");
+  } finally {
+    setLoading(false);
+  }
 }

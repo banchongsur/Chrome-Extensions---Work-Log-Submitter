@@ -1,57 +1,119 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Work Log Submitter</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>บันทึกการปฏิบัติงาน</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-    <div class="container">
-        <!-- ส่วนหัว -->
-        <header>
-            <svg class="header-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 9h-2V7h-2v7h4v-2zm-3 7H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/>
-            </svg>
-            <h2>บันทึกการปฏิบัติงาน</h2>
-        </header>
-        
-        <!-- ฟอร์มกรอกข้อมูล -->
-        <form id="workLogForm">
-            <div class="form-group">
-                <label for="taskName">ชื่องาน / หัวข้อ</label>
-                <input type="text" id="taskName" name="taskName" placeholder="เช่น สรุปรายงานการวิจัย, ปรับปรุงระบบ..." required>
-            </div>
-            
-            <div class="form-group">
-                <label for="timePeriod">ช่วงเวลา</label>
-                <select id="timePeriod" name="timePeriod" required>
-                    <option value="" disabled selected>เลือกช่วงเวลา...</option>
-                    <option value="08:30 - 12:00">08:30 - 12:00 (เช้า)</option>
-                    <option value="13:00 - 16:30">13:00 - 16:30 (บ่าย)</option>
-                    <option value="ล่วงเวลา (OT)">ล่วงเวลา (OT)</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="details">รายละเอียดการทำงาน</label>
-                <textarea id="details" name="details" rows="3" placeholder="ระบุรายละเอียดงานที่ทำสำเร็จ..." required></textarea>
-            </div>
-            
-            <button type="submit" id="submitBtn" class="btn-primary">
-                <span id="btnText">บันทึกข้อมูล</span>
-                <!-- Loading Spinner (ซ่อนไว้ตอนเริ่มต้น) -->
-                <svg id="loadingSpinner" class="spinner" viewBox="0 0 50 50" style="display: none;">
-                    <circle cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
-                </svg>
-            </button>
-        </form>
+<body class="popup-page">
+  <main class="container">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">WORK LOG</div>
+        <h1>บันทึกการปฏิบัติงาน</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="menuBtn" class="icon-btn" title="เมนู">☰</button>
+        <button id="closeBtn" class="icon-btn close-btn" title="ปิดหน้าบันทึกงาน" aria-label="ปิด">✕</button>
+      </div>
+    </header>
 
-        <!-- ส่วนแสดงผลลัพธ์ (Toast Notification) -->
-        <div id="toast" class="toast"></div>
+    <div id="quickMenu" class="quick-menu hidden" aria-label="เมนูลัด">
+      <button type="button" id="dashboardBtn">📊 Dashboard</button>
+      <button type="button" id="settingsBtn">⚙️ ตั้งค่า</button>
     </div>
 
-    <!-- ลิงก์ไปยังไฟล์ JavaScript -->
-    <script src="popup.js"></script>
+    <div id="configWarning" class="notice warning hidden"></div>
+
+    <form id="workLogForm">
+      <div class="grid-2">
+        <label>
+          วันที่
+          <div class="thai-date-field" data-thai-date="workDate">
+            <input type="text" id="workDateDisplay" autocomplete="off" placeholder="วัน เดือน พ.ศ." required>
+            <input type="hidden" id="workDate" required>
+            <button type="button" class="thai-calendar-btn" aria-label="เปิดปฏิทิน">📅</button>
+            <div class="thai-calendar-popup hidden"></div>
+          </div>
+        </label>
+        <label>
+          ช่วงเวลา
+          <select id="timePeriod" required>
+            <option value="">เลือกช่วงเวลา</option>
+            <option value="08:00 - 12:00">🌅 08:00 - 12:00 (เช้า)</option>
+            <option value="13:00 - 17:00">🌤️ 13:00 - 17:00 (บ่าย)</option>
+            <option value="ล่วงเวลา (OT)">🌙 ล่วงเวลา (OT)</option>
+            <option value="กำหนดเอง">🕐 กำหนดเอง</option>
+          </select>
+          <div id="customTimeBox" class="custom-time-box hidden">
+            <div>
+              <span>เวลาเริ่ม</span>
+              <input type="text" id="customStartTime" inputmode="numeric" maxlength="5" placeholder="HH:mm" autocomplete="off">
+            </div>
+            <span class="time-separator">ถึง</span>
+            <div>
+              <span>เวลาสิ้นสุด</span>
+              <input type="text" id="customEndTime" inputmode="numeric" maxlength="5" placeholder="HH:mm" autocomplete="off">
+            </div>
+            <small>🕐 รูปแบบ 24 ชั่วโมง: <b>HH:mm</b> เช่น 08:00, 13:00, 18:30 • ค่าเริ่มต้นอิงจากเวลาปัจจุบัน</small>
+          </div>
+        </label>
+      </div>
+
+      <label>
+        ประเภทงาน
+        <input type="text" id="category" placeholder="เช่น งานวิจัย, งานระบบ, ประชุม">
+      </label>
+
+      <label>
+        ชื่องาน / หัวข้อ
+        <input type="text" id="taskName" placeholder="เช่น จัดทำรายงานผลการวิจัย" required>
+      </label>
+
+      <label>
+        รายละเอียดการทำงาน
+        <textarea id="details" rows="4" placeholder="ระบุรายละเอียดงานที่ทำสำเร็จ..." required></textarea>
+      </label>
+
+      <div class="section-title">
+        <span>📎 เอกสารหลักฐาน</span>
+        <small id="fileCount">0 ไฟล์</small>
+      </div>
+
+      <label class="dropzone" for="evidenceFiles">
+        <input type="file" id="evidenceFiles" multiple>
+        <strong>คลิกเพื่อเลือกไฟล์</strong>
+        <span>สามารถเลือกหลายไฟล์ใน 1 งาน</span>
+      </label>
+
+      <div id="fileList" class="file-list"></div>
+
+      <label>
+        Link งาน (ถ้ามี)
+        <input type="url" id="workUrl" placeholder="https://...">
+      </label>
+
+      <label>
+        สถานะ
+        <select id="status"></select>
+      </label>
+
+      <div class="actions">
+        <button type="button" id="clearBtn" class="btn secondary">🧹 ล้าง</button>
+        <button type="submit" id="submitBtn" class="btn primary">
+          <span id="submitText">💾 บันทึกงาน</span>
+          <span id="spinner" class="spinner hidden"></span>
+        </button>
+      </div>
+    </form>
+
+    <div id="toast" class="toast hidden"></div>
+  </main>
+
+  <script src="utils.js"></script>
+  <script src="thai-date-picker.js"></script>
+  <script src="google-api.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>

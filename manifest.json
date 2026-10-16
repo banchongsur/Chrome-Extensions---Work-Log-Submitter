@@ -1,21 +1,33 @@
 {
   "manifest_version": 3,
-  "name": "Work Log Submitter",
-  "version": "1.0",
-  "description": "บันทึกการปฏิบัติงานลงฟอร์มองค์กรและสำรองลง Sheet ส่วนตัว",
-  
+  "name": "Work Log Manager",
+  "version": "3.8.7",
+  "description": "Work Log Manager V3.8.7 — Dashboard, Google Sheet, Excel Export, Edit, File Management, Soft Delete/Restore, Canonical Sheet Order, Fiscal Year",
   "permissions": [
-    "identity"
+    "identity",
+    "storage",
+    "system.display",
+    "downloads",
+    "tabs"
   ],
-  
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://oauth2.googleapis.com/*"
+  ],
   "oauth2": {
-    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "{{client_id}}.apps.googleusercontent.com",
     "scopes": [
-      "https://www.googleapis.com/auth/spreadsheets"
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive"
     ]
   },
-  
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_popup": "popup.html"
-  }
+    "default_title": "บันทึกการปฏิบัติงาน"
+  },
+  "options_page": "settings.html",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt89c7wwKSz1pTa6x+cyIKKNePI9EaALwMCeWQcPwbTRp2v/Kv2hXQ5wJJQ/z7Fm4rop0IqrL2Oaiz13DLmGb7+7SPBsN8U0RQYJ8oIarFXA/ZF2dBXlqtb2QkklHrzX3YNixXvIaF8ahabhAyvT0Bi4QCgp4c/B/p7PymGKwp0sHgeCICaTmeTcKjxyKzmTobWE2PCKCDBuHFjnRiBEvhS6zVIjInie7QRpzhB4PXoAhp0FLGgCuO5aWiZb3BNcSyYWRqdwjeJPZPN6UFxvPcDC6LLIAKAZLeWHschQ1eMNI2bIyfE6DljD4eH1vnEfxEK0SKEeoN9CzqpMwpM2HcwIDAQAB"
 }

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings - Work Log Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="full-page">
+  <main class="page-shell narrow">
+    <header class="page-header">
+      <div>
+        <div class="eyebrow">WORK LOG MANAGER</div>
+        <h1>⚙️ ตั้งค่าระบบ</h1>
+        <p>กำหนด Google Sheet และ Google Drive สำหรับระบบบันทึกการปฏิบัติงาน</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>🔐 Google Login</h2>
+      <p class="muted">เชื่อมต่อ Google ครั้งแรกเพียงครั้งเดียว ระบบจะเก็บ Refresh Token และต่ออายุ Access Token ให้อัตโนมัติ โดยไม่ใช้ Chrome Browser Sign-in</p>
+      <div class="setup-note">
+  <strong>การตั้งค่า Google ครั้งแรก</strong>
+  <p class="warning-note">Google OAuth Client ที่ใช้อยู่ต้องใช้ Client Secret ในขั้นตอนแรก Authorization Code จึงต้องกรอกค่า Client Secret ด้วย</p>
+  <p>สำหรับ Load unpacked ให้ใช้ OAuth Client ประเภท <b>Web application</b></p>
+  <div class="redirect-box">
+    <label>Authorized redirect URI</label>
+    <code id="oauthRedirectUri">กำลังอ่านค่า...</code>
+    <button type="button" id="copyRedirectBtn" class="secondary-btn">คัดลอก Redirect URI</button>
+  </div>
+</div>
+
+      <label>
+        Google OAuth Client Secret
+        <input id="clientSecret" type="password" autocomplete="off" placeholder="วาง Client Secret จาก Google Cloud">
+        <small>เก็บไว้ใน Chrome Extension storage ของเครื่องนี้เท่านั้น • ไม่ต้องกรอกซ้ำหลังบันทึก</small>
+      </label>
+
+<div id="oauthStatus" class="oauth-status disconnected">
+        <div>
+          <div class="state" id="oauthState">ยังไม่ได้เชื่อมต่อ Google</div>
+          <small id="oauthDetail">กดปุ่มด้านขวาเพื่อเชื่อมต่อ</small>
+        </div>
+        <div class="oauth-actions">
+          <button id="connectGoogleBtn" class="btn primary" type="button">🔗 เชื่อมต่อ Google</button>
+          <button id="disconnectGoogleBtn" class="btn danger hidden" type="button">ออกจาก Google</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Google Sheets</h2>
+      <p class="muted">Spreadsheet สำหรับเก็บรายละเอียดงานและ Link หลักฐาน</p>
+
+      <label>
+        Google Spreadsheet ID
+        <input id="spreadsheetId" type="text" placeholder="เช่น 1AbCdEfGh...">
+        <small>สามารถวาง URL ของ Google Sheet ได้ ระบบจะดึง ID ให้อัตโนมัติ</small>
+      </label>
+
+      <label>
+        ชื่อแท็บ
+        <input id="sheetName" type="text" value="WorkLog">
+        <small>ถ้าแท็บนี้ไม่มี ระบบจะสร้างให้อัตโนมัติ</small>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Google Drive</h2>
+      <p class="muted">โฟลเดอร์หลักสำหรับจัดเก็บเอกสารหลักฐาน</p>
+
+      <label>
+        Google Drive Folder ID
+        <input id="driveFolderId" type="text" placeholder="เช่น 1XyZ...">
+        <small>สามารถวาง URL ของโฟลเดอร์ได้</small>
+      </label>
+
+      <label>
+        โครงสร้างโฟลเดอร์
+        <select id="folderStructure">
+          <option value="year-month-task">ปี / เดือน / งาน</option>
+          <option value="year-task">ปี / งาน</option>
+          <option value="task">งาน</option>
+        </select>
+      </label>
+
+      <label>
+        จำนวนไฟล์สูงสุดต่อ 1 งาน
+        <input id="maxFilesPerTask" type="number" min="1" max="100" value="20">
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>หัวตารางอัตโนมัติ</h2>
+      <p class="muted">
+        ระบบจะตรวจสอบแท็บและหัวตารางก่อนบันทึกงาน หากไม่มีแท็บหรือยังไม่มีหัวตาราง
+        จะสร้างให้อัตโนมัติ โดยไม่ลบข้อมูลเดิม
+      </p>
+      <div class="header-preview" id="headerPreview"></div>
+    </section>
+
+    <div class="actions">
+      <button id="saveBtn" class="btn primary">บันทึกการตั้งค่า</button>
+      <button id="testBtn" class="btn secondary">ตรวจสอบการเชื่อมต่อ</button>
+    </div>
+
+    <div id="status" class="toast hidden"></div>
+  </main>
+
+  <script src="utils.js"></script>
+  <script src="google-api.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
